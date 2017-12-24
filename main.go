@@ -28,12 +28,21 @@ type DBrecord struct {
 }
 
 // CSVRecord represents a row in the csv manifest
-type CSVRecord struct {
+// type CSVRecord struct { // first iteration: manifestForObjTagging.csv
+// 	molecularID      string
+// 	assayMaterialID  string
+// 	s3TransferBucket string
+// 	s3Prefix         string
+// 	omicsSampleName  string
+// }
+
+// CSVRecord represents a row in the csv manifest
+type CSVRecord struct { // second iteration: 17-12-24-TagManifestUpdated.csv
 	molecularID      string
 	assayMaterialID  string
+	omicsSampleName  string
 	s3TransferBucket string
 	s3Prefix         string
-	omicsSampleName  string
 }
 
 // Uploads 100 files with random-ish tags
@@ -117,9 +126,9 @@ func handleRecord(record []string, wg *sync.WaitGroup, svc s3.S3) {
 
 	if !strings.HasSuffix(rec.s3Prefix, "/") {
 		rec.s3Prefix = rec.s3Prefix + "/"
-	} else {
-		fmt.Println("did not need to add slash on the end to", rec.s3Prefix)
-	}
+	} //else {
+	// 	fmt.Println("did not need to add slash on the end to", rec.s3Prefix)
+	// }
 
 	err := svc.ListObjectsV2Pages(&s3.ListObjectsV2Input{
 		Bucket:    &rec.s3TransferBucket,
