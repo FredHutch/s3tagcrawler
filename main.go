@@ -1,13 +1,15 @@
 package main
 
 import (
+	"encoding/csv"
 	"fmt"
+	"io"
+	"log"
 	"strings"
 	// "github.com/Pallinder/go-randomdata"
-	// "github.com/aws/aws-sdk-go/aws/session"
 	// "github.com/aws/aws-sdk-go/service/s3"
 	"math/rand"
-
+	"os"
 	"sync"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -23,6 +25,15 @@ type DBrecord struct {
 	tagKey     string
 	tagValue   string
 	objectKey  string
+}
+
+// CSVRecord represents a row in the csv manifest
+type CSVRecord struct {
+	molecularID      string
+	assayMaterialID  string
+	s3TransferBucket string
+	s3Prefix         string
+	omicsSampleName  string
 }
 
 // Uploads 100 files with random-ish tags
@@ -73,50 +84,102 @@ func uploadFilesWithTags() {
 	}
 }
 
-func main() {
-	// svc := s3.New(session.New(aws.NewConfig().WithLogLevel(aws.LogDebugWithHTTPBody)))
-	svc := s3.New(session.New())
-	// toCh := make(chan string)
-	// fromCh := make(chan DBrecord)
-	err := svc.ListObjectsPages(&s3.ListObjectsInput{
-		Bucket:    aws.String("dtenenba-test"),
+func tagRecord(obj *string, rec CSVRecord, tagwg *sync.WaitGroup, svc s3.S3) {
+	defer tagwg.Done()
+	// input := &s3.PutObjectTaggingInput{
+	// 	Bucket: aws.String(rec.s3TransferBucket),
+	// 	Key:    aws.String(*obj),
+	// 	Tagging: &s3.Tagging{
+	// 		TagSet: []*s3.Tag{
+	// 			{
+	// 				Key:   aws.String("molecular_id"),
+	// 				Value: aws.String(rec.molecularID),
+	// 			},
+	// 			{
+	// 				Key:   aws.String("assay_material_id"),
+	// 				Value: aws.String(rec.assayMaterialID),
+	// 			},
+	// 			{
+	// 				Key:   aws.String("omics_sample_name"),
+	// 				Value: aws.String(rec.omicsSampleName),
+	// 			},
+	// 		},
+	// 	},
+	// }
+	//fmt.Printf("About to tag %s/%s\n", *input.Bucket, *input.Key) // FIXME do actual tagging
+
+}
+
+func handleRecord(record []string, wg *sync.WaitGroup, svc s3.S3) {
+	defer wg.Done()
+	var tagwg sync.WaitGroup
+	rec := CSVRecord{record[0], record[1], record[2], record[3], record[4]}
+
+	if !strings.HasSuffix(rec.s3Prefix, "/") {
+		rec.s3Prefix = rec.s3Prefix + "/"
+	} else {
+		fmt.Println("did not need to add slash on the end to", rec.s3Prefix)
+	}
+
+	err := svc.ListObjectsV2Pages(&s3.ListObjectsV2Input{
+		Bucket:    &rec.s3TransferBucket,
 		Delimiter: aws.String("/"),
-		// MaxKeys:   aws.Int64(1000),
-	}, func(p *s3.ListObjectsOutput, lastPage bool) bool {
-		// fmt.Println("items", len(p.Contents), aws.StringValue(p.NextMarker), aws.BoolValue(p.IsTruncated))
-		for i := 0; i < len(p.Contents); i++ {
-			// fmt.Println(*p.Contents[i].Key)
-			// go func() {
-			result, err := svc.GetObjectTagging(&s3.GetObjectTaggingInput{
-				Bucket: aws.String("dtenenba-test"),
-				Key:    aws.String(*p.Contents[i].Key),
-			})
-			if err != nil {
-				fmt.Println(err)
-				panic("oops")
+		Prefix:    &rec.s3Prefix,
+	}, func(o *s3.ListObjectsV2Output, lastPage bool) bool {
+		for i := 0; i < len(o.Contents); i++ {
+			obj := o.Contents[i].Key
+			segs := strings.Split(*obj, "/")
+			fileName := segs[len(segs)-1]
+			if strings.HasPrefix(fileName, rec.omicsSampleName) &&
+				(strings.HasSuffix(fileName, ".fastq") ||
+					strings.HasSuffix(fileName, ".fastq.gz")) {
+				// fmt.Println("got a file", *obj, "filename is ", fileName)
+				tagwg.Add(1)
+				// fmt.Println("loquat")
+				go tagRecord(obj, rec, &tagwg, svc)
 			}
-			// fmt.Printf("There are %d tags for the key %s.\n", len(result.TagSet), *p.Contents[i].Key)
-			for j := 0; j < len(result.TagSet); j++ {
-				tag := result.TagSet[j]
-				//fmt.Printf("%s\t%s\t%s\t%s\n", "dtenenba-test", aws.String(tag.Key), tag.Value, *p.Contents[i].Key)
-				rec := DBrecord{
-					bucketname: "dtenenba-test",
-					tagKey:     *tag.Key,
-					tagValue:   *tag.Value,
-					objectKey:  *p.Contents[i].Key,
-				}
-
-				// fmt.Println("tkey", *tag.Key, "tvalue", *tag.Value, "bkey", *p.Contents[i].Key)
-
-				fmt.Printf("%s\t%s\t%s\t%s\n", rec.bucketname, rec.tagKey, rec.tagValue, rec.objectKey)
-			}
-			// }()
-			// toCh <- *p.Contents[i].Key
 		}
-		return *p.IsTruncated
+		return !*o.IsTruncated
+		// return lastPage
 	})
 	if err != nil {
-		fmt.Println("error", err)
-		return
+		panic(err)
 	}
+	// fmt.Println("let's wait")
+	// tagwg.Wait()
+}
+
+func main() {
+	if len(os.Args) < 2 {
+		fmt.Println("Supply the name of a csv file!")
+		os.Exit(1)
+	}
+	os.Setenv("AWS_REGION", "us-west-2") // FIXME
+	svc := s3.New(session.New())
+
+	fileHandle, err := os.Open(os.Args[1])
+	if err != nil {
+		panic(err)
+	}
+	defer fileHandle.Close()
+	r := csv.NewReader(fileHandle)
+	var wg sync.WaitGroup
+	for i := 0; ; i++ {
+		record, readErr := r.Read()
+		if readErr == io.EOF {
+			break
+		}
+		if readErr != nil {
+			log.Fatal(readErr)
+		}
+		if i == 0 { // skip header
+			continue
+		}
+		// fmt.Println("got a record!", record)
+		wg.Add(1)
+		go handleRecord(record, &wg, *svc)
+	}
+	// fmt.Println("made it to the end")
+	wg.Wait()
+	// fmt.Println("really done")
 }
