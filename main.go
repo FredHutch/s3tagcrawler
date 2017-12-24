@@ -93,7 +93,8 @@ func uploadFilesWithTags() {
 	}
 }
 
-func tagRecord(obj *string, rec CSVRecord, tagch chan bool, svc s3.S3) {
+func tagRecord(obj *string, rec CSVRecord, tagwg *sync.WaitGroup, svc s3.S3) {
+	defer tagwg.Done()
 	// input := &s3.PutObjectTaggingInput{
 	// 	Bucket: aws.String(rec.s3TransferBucket),
 	// 	Key:    aws.String(*obj),
@@ -115,13 +116,12 @@ func tagRecord(obj *string, rec CSVRecord, tagch chan bool, svc s3.S3) {
 	// 	},
 	// }
 	//fmt.Printf("About to tag %s/%s\n", *input.Bucket, *input.Key) // FIXME do actual tagging
-	tagch <- false
+
 }
 
-func handleRecord(record []string, ch chan bool, svc s3.S3) {
-	// println("in handlerecord")
-	tagch := make(chan bool)
-	var tagcount int
+func handleRecord(record []string, wg *sync.WaitGroup, svc s3.S3) {
+	defer wg.Done()
+	var tagwg sync.WaitGroup
 	rec := CSVRecord{record[0], record[1], record[2], record[3], record[4]}
 
 	if !strings.HasSuffix(rec.s3Prefix, "/") {
@@ -142,9 +142,10 @@ func handleRecord(record []string, ch chan bool, svc s3.S3) {
 			if strings.HasPrefix(fileName, rec.omicsSampleName) &&
 				(strings.HasSuffix(fileName, ".fastq") ||
 					strings.HasSuffix(fileName, ".fastq.gz")) {
-				fmt.Println("got a file", *obj, "filename is ", fileName)
-				tagcount++
-				go tagRecord(obj, rec, tagch, svc)
+				// fmt.Println("got a file", *obj, "filename is ", fileName)
+				tagwg.Add(1)
+				// fmt.Println("loquat")
+				go tagRecord(obj, rec, &tagwg, svc)
 			}
 		}
 		return !*o.IsTruncated
@@ -153,11 +154,8 @@ func handleRecord(record []string, ch chan bool, svc s3.S3) {
 	if err != nil {
 		panic(err)
 	}
-	for i := 0; i < tagcount; i++ { // reimplimenting logic of WaitGroup - bad
-		<-tagch
-	}
-
-	ch <- false
+	// fmt.Println("let's wait")
+	// tagwg.Wait()
 }
 
 func main() {
@@ -173,13 +171,11 @@ func main() {
 		panic(err)
 	}
 	defer fileHandle.Close()
-	var lines int
 	r := csv.NewReader(fileHandle)
-	ch := make(chan bool)
+	var wg sync.WaitGroup
 	for i := 0; ; i++ {
 		record, readErr := r.Read()
 		if readErr == io.EOF {
-
 			break
 		}
 		if readErr != nil {
@@ -188,10 +184,11 @@ func main() {
 		if i == 0 { // skip header
 			continue
 		}
-		lines++
-		go handleRecord(record, ch, *svc)
+		// fmt.Println("got a record!", record)
+		wg.Add(1)
+		go handleRecord(record, &wg, *svc)
 	}
-	for i := 0; i < lines; i++ {
-		<-ch
-	}
+	// fmt.Println("made it to the end")
+	wg.Wait()
+	// fmt.Println("really done")
 }
