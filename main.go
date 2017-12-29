@@ -95,28 +95,30 @@ func uploadFilesWithTags() {
 
 func tagRecord(obj *string, rec CSVRecord, tagwg *sync.WaitGroup, svc s3.S3) {
 	defer tagwg.Done()
-	// input := &s3.PutObjectTaggingInput{
-	// 	Bucket: aws.String(rec.s3TransferBucket),
-	// 	Key:    aws.String(*obj),
-	// 	Tagging: &s3.Tagging{
-	// 		TagSet: []*s3.Tag{
-	// 			{
-	// 				Key:   aws.String("molecular_id"),
-	// 				Value: aws.String(rec.molecularID),
-	// 			},
-	// 			{
-	// 				Key:   aws.String("assay_material_id"),
-	// 				Value: aws.String(rec.assayMaterialID),
-	// 			},
-	// 			{
-	// 				Key:   aws.String("omics_sample_name"),
-	// 				Value: aws.String(rec.omicsSampleName),
-	// 			},
-	// 		},
-	// 	},
-	// }
-	//fmt.Printf("About to tag %s/%s\n", *input.Bucket, *input.Key) // FIXME do actual tagging
-
+	input := &s3.PutObjectTaggingInput{
+		Bucket: aws.String(rec.s3TransferBucket),
+		Key:    aws.String(*obj),
+		Tagging: &s3.Tagging{
+			TagSet: []*s3.Tag{
+				{
+					Key:   aws.String("molecular_id"),
+					Value: aws.String(rec.molecularID),
+				},
+				{
+					Key:   aws.String("assay_material_id"),
+					Value: aws.String(rec.assayMaterialID),
+				},
+				{
+					Key:   aws.String("omics_sample_name"),
+					Value: aws.String(rec.omicsSampleName),
+				},
+			},
+		},
+	}
+	_, err := svc.PutObjectTagging(input)
+	if err != nil {
+		fmt.Printf("Error tagging %s: %s.\n", *obj, err)
+	}
 }
 
 func handleRecord(record []string, wg *sync.WaitGroup, svc s3.S3) {
