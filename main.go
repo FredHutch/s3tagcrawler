@@ -120,6 +120,12 @@ func tagRecord(obj *string, rec CSVRecord, tagwg *sync.WaitGroup, svc s3.S3) {
 					Key:   aws.String("omics_sample_name"),
 					Value: aws.String(rec.omicsSampleName),
 				},
+				// FIXME in future 'stage' will be a column in the csv, not hardcoded like
+				// here. Some files (those processed by globus) will have stage=processed.
+				{
+					Key:   aws.String("stage"),
+					Value: aws.String("raw"),
+				},
 			},
 		},
 	}
