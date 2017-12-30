@@ -1,5 +1,13 @@
 package main
 
+/*
+NOTE: If you get a "Too many open files" error when running this, change your ulimit:
+oldulimit=$(ulimit -n)
+ulimit -n 4096
+ulimit -n $oldulimit
+TODO: tune the program so this is not needed.
+*/
+
 import (
 	"encoding/csv"
 	"fmt"
