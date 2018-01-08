@@ -8,6 +8,9 @@ ulimit -n $oldulimit
 TODO: tune the program so this is not needed.
 */
 
+// FIXME if a file already exists in S3, don't overwrite it, print a message
+// with the object name and go on to the next.
+
 import (
 	"encoding/csv"
 	"fmt"
@@ -16,6 +19,7 @@ import (
 	"log"
 	"net/url"
 	"strings"
+	"sync/atomic"
 	// "github.com/Pallinder/go-randomdata"
 	// "github.com/aws/aws-sdk-go/service/s3"
 	"math/rand"
@@ -85,7 +89,7 @@ func uploadFilesWithTags() {
 				Tagging: aws.String(tags),
 			}
 
-			result, err := svc.PutObject(input)
+			_, err := svc.PutObject(input)
 			if err != nil {
 				if aerr, ok := err.(awserr.Error); ok {
 					switch aerr.Code() {
@@ -101,15 +105,44 @@ func uploadFilesWithTags() {
 			}
 
 			fmt.Printf("Uploading %s with tags %s...\n", objectName, tags)
-			fmt.Println(result)
 
 		}()
 		wg.Wait()
 	}
 }
 
-func uploadFile(fileToUpload string, rec CSVRecord, wg *sync.WaitGroup, svc s3.S3) {
+func deleteFile(fileToUpload string, rec CSVRecord, wg *sync.WaitGroup, svc s3.S3, ops *uint64) {
 	defer wg.Done()
+	obj := rec.s3Prefix + fileToUpload
+	_, derr := svc.DeleteObject(&s3.DeleteObjectInput{
+		Bucket: aws.String(rec.s3TransferBucket),
+		Key:    aws.String(obj),
+	})
+	if derr != nil {
+		panic(derr)
+	}
+	atomic.AddUint64(ops, 1)
+}
+
+func fileExistsInS3(fileName string, rec CSVRecord, svc s3.S3) bool {
+	res, err := svc.ListObjectsV2(&s3.ListObjectsV2Input{
+		Bucket:    aws.String(rec.s3TransferBucket),
+		Delimiter: aws.String("/"),
+		Prefix:    aws.String(rec.s3Prefix + fileName),
+	})
+	if err != nil {
+		panic(err)
+	}
+	// fmt.Println("fileExistsInS3 got result", res)
+	return *res.KeyCount > 0
+}
+
+func uploadFile(fileToUpload string, rec CSVRecord, wg *sync.WaitGroup, svc s3.S3, ops *uint64) {
+	defer wg.Done()
+	if fileExistsInS3(fileToUpload, rec, svc) {
+		fmt.Println(rec.s3Prefix+fileToUpload, "already exists in S3; not overwriting.")
+		return
+	}
 	fd, err := os.Open(rec.localDir + fileToUpload)
 	if err != nil {
 		panic(err)
@@ -120,11 +153,6 @@ func uploadFile(fileToUpload string, rec CSVRecord, wg *sync.WaitGroup, svc s3.S
 	v.Set("assayMaterialId", rec.assayMaterialID)
 	v.Set("molecularID", rec.molecularID)
 
-	fmt.Println("v is", v.Encode())
-	if true {
-		return
-	}
-
 	// FIXME add omicsSampleName here?
 	input := &s3.PutObjectInput{
 		Bucket:  aws.String(rec.s3TransferBucket),
@@ -132,9 +160,9 @@ func uploadFile(fileToUpload string, rec CSVRecord, wg *sync.WaitGroup, svc s3.S
 		Body:    fd,
 		Tagging: aws.String(v.Encode()),
 	}
-	result, err := svc.PutObject(input)
-	if err != nil {
-		if aerr, ok := err.(awserr.Error); ok {
+	_, perr := svc.PutObject(input)
+	if perr != nil {
+		if aerr, ok := perr.(awserr.Error); ok {
 			switch aerr.Code() {
 			default:
 				fmt.Println(aerr.Error())
@@ -142,12 +170,12 @@ func uploadFile(fileToUpload string, rec CSVRecord, wg *sync.WaitGroup, svc s3.S
 		} else {
 			// Print the error, cast err to awserr.Error to get the Code and
 			// Message from an error.
-			fmt.Println(err.Error())
+			fmt.Println(perr.Error())
 		}
 		// return
 	}
+	atomic.AddUint64(ops, 1)
 	fmt.Printf("Uploading %s%s with tags %s...\n", rec.s3Prefix, fileToUpload, v.Encode())
-	fmt.Println(result)
 
 }
 
@@ -185,12 +213,12 @@ func tagRecord(obj *string, rec CSVRecord, tagwg *sync.WaitGroup, svc s3.S3) {
 	}
 }
 
-func handleRecord(record []string, wg *sync.WaitGroup, svc s3.S3) {
+func handleRecord(record []string, wg *sync.WaitGroup, svc s3.S3, cmd string, ops *uint64) {
 	defer wg.Done()
 	var uploadWg sync.WaitGroup
 	rec := CSVRecord{molecularID: record[3], assayMaterialID: record[4],
 		s3TransferBucket: record[1], s3Prefix: record[2], localDir: record[0],
-		stage: record[5]}
+		stage: strings.TrimSpace(record[5])}
 
 	if !strings.HasSuffix(rec.s3Prefix, "/") {
 		rec.s3Prefix = rec.s3Prefix + "/"
@@ -204,47 +232,35 @@ func handleRecord(record []string, wg *sync.WaitGroup, svc s3.S3) {
 		panic(err)
 	}
 	for _, file := range files {
-		if !file.IsDir() {
-			// TODO - need additional tests for .fastq/.fastq.gz suffix
-			// or omicsSampleName prefix?
-			uploadWg.Add(1)
-			go uploadFile(file.Name(), rec, &uploadWg, svc)
+		if !file.IsDir() && (strings.HasSuffix(file.Name(), ".fastq") ||
+			strings.HasSuffix(file.Name(), ".fastq.gz")) {
+			switch cmd {
+			case "upload":
+				uploadWg.Add(1)
+				go uploadFile(file.Name(), rec, &uploadWg, svc, ops)
+			case "delete":
+				uploadWg.Add(1)
+				go deleteFile(file.Name(), rec, &uploadWg, svc, ops)
+			case "count":
+				// fmt.Printf("%s%s\n", rec.localDir, file.Name())
+				atomic.AddUint64(ops, 1)
+			}
 		}
 	}
 	uploadWg.Wait()
-
-	// err := svc.ListObjectsV2Pages(&s3.ListObjectsV2Input{
-	// 	Bucket:    &rec.s3TransferBucket,
-	// 	Delimiter: aws.String("/"),
-	// 	Prefix:    &rec.s3Prefix,
-	// }, func(o *s3.ListObjectsV2Output, lastPage bool) bool {
-	// 	for i := 0; i < len(o.Contents); i++ {
-	// 		obj := o.Contents[i].Key
-	// segs := strings.Split(*obj, "/")
-	// fileName := segs[len(segs)-1]
-	// if strings.HasPrefix(fileName, rec.omicsSampleName) &&
-	// 	(strings.HasSuffix(fileName, ".fastq") ||
-	// strings.HasSuffix(fileName, ".fastq.gz")) {
-	// fmt.Println("got a file", *obj, "filename is ", fileName)
-	// 		tagwg.Add(1)
-	// 		// fmt.Println("loquat")
-	// 		go tagRecord(obj, rec, &tagwg, svc)
-	// 		// }
-	// 	}
-	// 	return !*o.IsTruncated
-	// 	// return lastPage
-	// })
-	// if err != nil {
-	// 	panic(err)
-	// }
-	// fmt.Println("let's wait")
-	// tagwg.Wait()
 }
 
 func main() {
+
+	var ops uint64
+
 	if len(os.Args) < 2 {
 		fmt.Println("Supply the name of a csv file!")
 		os.Exit(1)
+	}
+	cmd := "upload"
+	if len(os.Args) > 2 {
+		cmd = os.Args[2]
 	}
 	os.Setenv("AWS_REGION", "us-west-2") // FIXME
 	svc := s3.New(session.New())
@@ -267,11 +283,9 @@ func main() {
 		if i == 0 { // skip header
 			continue
 		}
-		// fmt.Println("got a record!", record)
 		wg.Add(1)
-		go handleRecord(record, &wg, *svc)
+		go handleRecord(record, &wg, *svc, cmd, &ops)
 	}
-	// fmt.Println("made it to the end")
 	wg.Wait()
-	// fmt.Println("really done")
+	fmt.Println("Number of ops:", atomic.LoadUint64(&ops))
 }
