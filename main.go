@@ -12,7 +12,9 @@ import (
 	"encoding/csv"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
+	"net/url"
 	"strings"
 	// "github.com/Pallinder/go-randomdata"
 	// "github.com/aws/aws-sdk-go/service/s3"
@@ -46,12 +48,17 @@ type DBrecord struct {
 
 // CSVRecord represents a row in the csv manifest
 type CSVRecord struct { // second iteration: 17-12-24-TagManifestUpdated.csv
-	molecularID      string
-	assayMaterialID  string
-	omicsSampleName  string
+	molecularID     string
+	assayMaterialID string
+	// omicsSampleName  string
 	s3TransferBucket string
 	s3Prefix         string
+	localDir         string
+	stage            string
 }
+
+// file: seq_dir,s3transferbucket,s3_prefix,molecular_id,assay_material_id,stage
+// struct: molecular_id,assay_material_id,s3transferbucket,s3_prefix,seq_dir,,,,,stage
 
 // Uploads 100 files with random-ish tags
 func uploadFilesWithTags() {
@@ -101,6 +108,49 @@ func uploadFilesWithTags() {
 	}
 }
 
+func uploadFile(fileToUpload string, rec CSVRecord, wg *sync.WaitGroup, svc s3.S3) {
+	defer wg.Done()
+	fd, err := os.Open(rec.localDir + fileToUpload)
+	if err != nil {
+		panic(err)
+	}
+	defer fd.Close()
+	v := url.Values{}
+	v.Set("stage", rec.stage)
+	v.Set("assayMaterialId", rec.assayMaterialID)
+	v.Set("molecularID", rec.molecularID)
+
+	fmt.Println("v is", v.Encode())
+	if true {
+		return
+	}
+
+	// FIXME add omicsSampleName here?
+	input := &s3.PutObjectInput{
+		Bucket:  aws.String(rec.s3TransferBucket),
+		Key:     aws.String(rec.s3Prefix + fileToUpload),
+		Body:    fd,
+		Tagging: aws.String(v.Encode()),
+	}
+	result, err := svc.PutObject(input)
+	if err != nil {
+		if aerr, ok := err.(awserr.Error); ok {
+			switch aerr.Code() {
+			default:
+				fmt.Println(aerr.Error())
+			}
+		} else {
+			// Print the error, cast err to awserr.Error to get the Code and
+			// Message from an error.
+			fmt.Println(err.Error())
+		}
+		// return
+	}
+	fmt.Printf("Uploading %s%s with tags %s...\n", rec.s3Prefix, fileToUpload, v.Encode())
+	fmt.Println(result)
+
+}
+
 func tagRecord(obj *string, rec CSVRecord, tagwg *sync.WaitGroup, svc s3.S3) {
 	defer tagwg.Done()
 	input := &s3.PutObjectTaggingInput{
@@ -116,10 +166,10 @@ func tagRecord(obj *string, rec CSVRecord, tagwg *sync.WaitGroup, svc s3.S3) {
 					Key:   aws.String("assay_material_id"),
 					Value: aws.String(rec.assayMaterialID),
 				},
-				{
-					Key:   aws.String("omics_sample_name"),
-					Value: aws.String(rec.omicsSampleName),
-				},
+				// {
+				// 	Key:   aws.String("omics_sample_name"),
+				// 	Value: aws.String(rec.omicsSampleName),
+				// },
 				// FIXME in future 'stage' will be a column in the csv, not hardcoded like
 				// here. Some files (those processed by globus) will have stage=processed.
 				{
@@ -137,39 +187,56 @@ func tagRecord(obj *string, rec CSVRecord, tagwg *sync.WaitGroup, svc s3.S3) {
 
 func handleRecord(record []string, wg *sync.WaitGroup, svc s3.S3) {
 	defer wg.Done()
-	var tagwg sync.WaitGroup
-	rec := CSVRecord{record[0], record[1], record[2], record[3], record[4]}
+	var uploadWg sync.WaitGroup
+	rec := CSVRecord{molecularID: record[3], assayMaterialID: record[4],
+		s3TransferBucket: record[1], s3Prefix: record[2], localDir: record[0],
+		stage: record[5]}
 
 	if !strings.HasSuffix(rec.s3Prefix, "/") {
 		rec.s3Prefix = rec.s3Prefix + "/"
-	} //else {
-	// 	fmt.Println("did not need to add slash on the end to", rec.s3Prefix)
-	// }
+	}
+	if !strings.HasSuffix(rec.localDir, "/") {
+		rec.localDir = rec.localDir + "/"
+	}
 
-	err := svc.ListObjectsV2Pages(&s3.ListObjectsV2Input{
-		Bucket:    &rec.s3TransferBucket,
-		Delimiter: aws.String("/"),
-		Prefix:    &rec.s3Prefix,
-	}, func(o *s3.ListObjectsV2Output, lastPage bool) bool {
-		for i := 0; i < len(o.Contents); i++ {
-			obj := o.Contents[i].Key
-			segs := strings.Split(*obj, "/")
-			fileName := segs[len(segs)-1]
-			if strings.HasPrefix(fileName, rec.omicsSampleName) &&
-				(strings.HasSuffix(fileName, ".fastq") ||
-					strings.HasSuffix(fileName, ".fastq.gz")) {
-				// fmt.Println("got a file", *obj, "filename is ", fileName)
-				tagwg.Add(1)
-				// fmt.Println("loquat")
-				go tagRecord(obj, rec, &tagwg, svc)
-			}
-		}
-		return !*o.IsTruncated
-		// return lastPage
-	})
+	files, err := ioutil.ReadDir(rec.localDir)
 	if err != nil {
 		panic(err)
 	}
+	for _, file := range files {
+		if !file.IsDir() {
+			// TODO - need additional tests for .fastq/.fastq.gz suffix
+			// or omicsSampleName prefix?
+			uploadWg.Add(1)
+			go uploadFile(file.Name(), rec, &uploadWg, svc)
+		}
+	}
+	uploadWg.Wait()
+
+	// err := svc.ListObjectsV2Pages(&s3.ListObjectsV2Input{
+	// 	Bucket:    &rec.s3TransferBucket,
+	// 	Delimiter: aws.String("/"),
+	// 	Prefix:    &rec.s3Prefix,
+	// }, func(o *s3.ListObjectsV2Output, lastPage bool) bool {
+	// 	for i := 0; i < len(o.Contents); i++ {
+	// 		obj := o.Contents[i].Key
+	// segs := strings.Split(*obj, "/")
+	// fileName := segs[len(segs)-1]
+	// if strings.HasPrefix(fileName, rec.omicsSampleName) &&
+	// 	(strings.HasSuffix(fileName, ".fastq") ||
+	// strings.HasSuffix(fileName, ".fastq.gz")) {
+	// fmt.Println("got a file", *obj, "filename is ", fileName)
+	// 		tagwg.Add(1)
+	// 		// fmt.Println("loquat")
+	// 		go tagRecord(obj, rec, &tagwg, svc)
+	// 		// }
+	// 	}
+	// 	return !*o.IsTruncated
+	// 	// return lastPage
+	// })
+	// if err != nil {
+	// 	panic(err)
+	// }
 	// fmt.Println("let's wait")
 	// tagwg.Wait()
 }
