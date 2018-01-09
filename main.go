@@ -18,6 +18,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/url"
+	"runtime"
 	"strings"
 	"sync/atomic"
 	// "github.com/Pallinder/go-randomdata"
@@ -138,8 +139,9 @@ func fileExistsInS3(fileName string, rec CSVRecord, svc s3.S3) bool {
 	return *res.KeyCount > 0
 }
 
-func uploadFile(fileToUpload string, rec CSVRecord, wg *sync.WaitGroup, svc s3.S3, ops *uint64) {
+func uploadFile(fileToUpload string, rec CSVRecord, wg *sync.WaitGroup, svc s3.S3, ops *uint64, guard chan struct{}) {
 	defer wg.Done()
+	defer func() { <-guard }()
 	if fileExistsInS3(fileToUpload, rec, svc) {
 		fmt.Println(rec.s3Prefix+fileToUpload, "already exists in S3; not overwriting.")
 		return
@@ -215,9 +217,7 @@ func tagRecord(obj *string, rec CSVRecord, tagwg *sync.WaitGroup, svc s3.S3) {
 	}
 }
 
-func handleRecord(record []string, wg *sync.WaitGroup, svc s3.S3, cmd string, ops *uint64) {
-	defer wg.Done()
-	var uploadWg sync.WaitGroup
+func handleRecord(record []string, wg *sync.WaitGroup, svc s3.S3, cmd string, ops *uint64, guard chan struct{}) {
 	rec := CSVRecord{molecularID: record[3], assayMaterialID: record[4],
 		s3TransferBucket: record[1], s3Prefix: record[2], localDir: record[0],
 		stage: record[5], omicsSampleName: strings.TrimSpace(record[6])}
@@ -238,23 +238,24 @@ func handleRecord(record []string, wg *sync.WaitGroup, svc s3.S3, cmd string, op
 			strings.HasSuffix(file.Name(), ".fastq.gz")) {
 			switch cmd {
 			case "upload":
-				uploadWg.Add(1)
-				go uploadFile(file.Name(), rec, &uploadWg, svc, ops)
+				wg.Add(1)
+				guard <- struct{}{}
+				go uploadFile(file.Name(), rec, wg, svc, ops, guard)
 			case "delete":
-				uploadWg.Add(1)
-				go deleteFile(file.Name(), rec, &uploadWg, svc, ops)
+				deleteFile(file.Name(), rec, wg, svc, ops)
 			case "count":
 				// fmt.Printf("%s%s\n", rec.localDir, file.Name())
 				atomic.AddUint64(ops, 1)
 			}
 		}
 	}
-	uploadWg.Wait()
 }
 
 func main() {
 
 	var ops uint64
+	maxGoroutines := runtime.NumCPU() - 1
+	guard := make(chan struct{}, maxGoroutines)
 
 	if len(os.Args) < 2 {
 		fmt.Println("Supply the name of a csv file!")
@@ -285,8 +286,7 @@ func main() {
 		if i == 0 { // skip header
 			continue
 		}
-		wg.Add(1)
-		go handleRecord(record, &wg, *svc, cmd, &ops)
+		handleRecord(record, &wg, *svc, cmd, &ops, guard)
 	}
 	wg.Wait()
 	fmt.Println("Number of ops:", atomic.LoadUint64(&ops))
