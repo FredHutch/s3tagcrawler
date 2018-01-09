@@ -59,6 +59,7 @@ type CSVRecord struct { // second iteration: 17-12-24-TagManifestUpdated.csv
 	s3Prefix         string
 	localDir         string
 	stage            string
+	omicsSampleName  string
 }
 
 // file: seq_dir,s3transferbucket,s3_prefix,molecular_id,assay_material_id,stage
@@ -152,6 +153,7 @@ func uploadFile(fileToUpload string, rec CSVRecord, wg *sync.WaitGroup, svc s3.S
 	v.Set("stage", rec.stage)
 	v.Set("assayMaterialId", rec.assayMaterialID)
 	v.Set("molecularID", rec.molecularID)
+	v.Set("omicsSampleName", rec.omicsSampleName)
 
 	// FIXME add omicsSampleName here?
 	input := &s3.PutObjectInput{
@@ -218,7 +220,7 @@ func handleRecord(record []string, wg *sync.WaitGroup, svc s3.S3, cmd string, op
 	var uploadWg sync.WaitGroup
 	rec := CSVRecord{molecularID: record[3], assayMaterialID: record[4],
 		s3TransferBucket: record[1], s3Prefix: record[2], localDir: record[0],
-		stage: strings.TrimSpace(record[5])}
+		stage: record[5], omicsSampleName: strings.TrimSpace(record[6])}
 
 	if !strings.HasSuffix(rec.s3Prefix, "/") {
 		rec.s3Prefix = rec.s3Prefix + "/"
