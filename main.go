@@ -263,6 +263,11 @@ Please supply the name of a csv file containing the following a header line
 like this:
 
 seq_dir,s3transferbucket,s3_prefix,molecular_id,assay_material_id,stage,omics_sample_name
+
+NOTE: This program will use all available cores. Be a good citizen and
+'grablargenode' so that this program does not disrupt others' work.
+More information:
+https://teams.fhcrc.org/sites/citwiki/SciComp/Pages/Grab%%20Commands.aspx
 `)
 		os.Exit(1)
 	}
