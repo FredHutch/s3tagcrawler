@@ -30,7 +30,7 @@ Where each column is as follows (column order is important!):
 * `stage`: Value for the `stage` tag. Should be `raw` for raw data.
 * `omicsSampleName`: Value for the `omicsSampleName` tag.
 
-Note that the actual names in the header column are not important to the program.
+Note that the actual names in the header row are not important to the program.
 It uses column positions and not the values of the header column. In other words,
 it expects the local folder to be the first column, the s3 bucket to be the second,
 and so on.
