@@ -258,7 +258,12 @@ func main() {
 	guard := make(chan struct{}, maxGoroutines)
 
 	if len(os.Args) < 2 {
-		fmt.Println("Supply the name of a csv file!")
+		fmt.Printf(`
+Please supply the name of a csv file containing the following a header line
+like this:
+
+seq_dir,s3transferbucket,s3_prefix,molecular_id,assay_material_id,stage,omics_sample_name
+`)
 		os.Exit(1)
 	}
 	cmd := "upload"
