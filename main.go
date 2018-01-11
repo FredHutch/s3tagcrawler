@@ -262,7 +262,7 @@ func main() {
 Please supply the name of a csv file containing the following a header line
 like this:
 
-seq_dir,s3transferbucket,s3_prefix,molecular_id,assay_material_id,stage,omics_sample_name
+seq_dir,s3transferbucket,s3_prefix,molecularID,assayMaterialId,stage,omicsSampleName
 
 NOTE: This program will use all available cores. Be a good citizen and
 'grablargenode' so that this program does not disrupt others' work.
