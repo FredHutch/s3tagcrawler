@@ -268,6 +268,9 @@ NOTE: This program will use all available cores. Be a good citizen and
 'grablargenode' so that this program does not disrupt others' work.
 More information:
 https://teams.fhcrc.org/sites/citwiki/SciComp/Pages/Grab%%20Commands.aspx
+
+Full documentation is here:
+https://github.com/FredHutch/s3tagcrawler/tree/feature/uploadAndTag
 `)
 		os.Exit(1)
 	}
