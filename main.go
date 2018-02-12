@@ -153,9 +153,9 @@ func uploadFile(fileToUpload string, rec CSVRecord, wg *sync.WaitGroup, svc s3.S
 	defer fd.Close()
 	v := url.Values{}
 	v.Set("stage", rec.stage)
-	v.Set("assayMaterialId", rec.assayMaterialID)
-	v.Set("molecularID", rec.molecularID)
-	v.Set("omicsSampleName", rec.omicsSampleName)
+	v.Set("assay_material_id", rec.assayMaterialID)
+	v.Set("molecular_id", rec.molecularID)
+	v.Set("omics_sample_name", rec.omicsSampleName)
 
 	// FIXME add omicsSampleName here?
 	input := &s3.PutObjectInput{
@@ -181,40 +181,6 @@ func uploadFile(fileToUpload string, rec CSVRecord, wg *sync.WaitGroup, svc s3.S
 	atomic.AddUint64(ops, 1)
 	fmt.Printf("Uploading %s%s with tags %s...\n", rec.s3Prefix, fileToUpload, v.Encode())
 
-}
-
-func tagRecord(obj *string, rec CSVRecord, tagwg *sync.WaitGroup, svc s3.S3) {
-	defer tagwg.Done()
-	input := &s3.PutObjectTaggingInput{
-		Bucket: aws.String(rec.s3TransferBucket),
-		Key:    aws.String(*obj),
-		Tagging: &s3.Tagging{
-			TagSet: []*s3.Tag{
-				{
-					Key:   aws.String("molecular_id"),
-					Value: aws.String(rec.molecularID),
-				},
-				{
-					Key:   aws.String("assay_material_id"),
-					Value: aws.String(rec.assayMaterialID),
-				},
-				// {
-				// 	Key:   aws.String("omics_sample_name"),
-				// 	Value: aws.String(rec.omicsSampleName),
-				// },
-				// FIXME in future 'stage' will be a column in the csv, not hardcoded like
-				// here. Some files (those processed by globus) will have stage=processed.
-				{
-					Key:   aws.String("stage"),
-					Value: aws.String("raw"),
-				},
-			},
-		},
-	}
-	_, err := svc.PutObjectTagging(input)
-	if err != nil {
-		fmt.Printf("Error tagging %s: %s.\n", *obj, err)
-	}
 }
 
 func handleRecord(record []string, wg *sync.WaitGroup, svc s3.S3, cmd string, ops *uint64, guard chan struct{}) {
@@ -262,7 +228,7 @@ func main() {
 Please supply the name of a csv file containing the following a header line
 like this:
 
-seq_dir,s3transferbucket,s3_prefix,molecularID,assayMaterialId,stage,omicsSampleName
+seq_dir,s3transferbucket,s3_prefix,molecular_id,assay_material_id,stage,omics_sample_name
 
 NOTE: This program will use all available cores. Be a good citizen and
 'grablargenode' so that this program does not disrupt others' work.

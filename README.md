@@ -13,7 +13,7 @@ machines or you will get yelled at.** Instead, use
 You must supply a CSV file which has a header line like this:
 
 ```
-seq_dir,s3transferbucket,s3_prefix,molecularID,assayMaterialId,stage,omicsSampleName
+seq_dir,s3transferbucket,s3_prefix,molecular_id,assay_material_id,stage,omics_sample_name
 ```
 
 Where each column is as follows (column order is important!):
@@ -25,10 +25,10 @@ Where each column is as follows (column order is important!):
   not have an `s3://` prefix. You must have write access to this bucket in order
   to use this tool.
 * `s3_prefix`: The prefix in S3 where the files in `seq_dir` should be uploaded.
-* `molecularID`: Value for the `molecularID` tag.
-* `assayMaterialId`: Value for the `assayMaterialId` tag.
+* `molecular_id`: Value for the `molecular_id` tag.
+* `assay_material_id`: Value for the `assay_material_id` tag.
 * `stage`: Value for the `stage` tag. Should be `raw` for raw data.
-* `omicsSampleName`: Value for the `omicsSampleName` tag.
+* `omics_sample_name`: Value for the `omics_sample_name` tag.
 
 Note that the actual names in the header row are not important to the program.
 It uses column positions and not the values of the header column. In other words,
@@ -68,7 +68,7 @@ It will return something like this:
     "TagSet": [
         {
             "Value": "R0625",
-            "Key": "assayMaterialId"
+            "Key": "assay_material_id"
         },
         {
             "Value": "raw",
@@ -76,11 +76,11 @@ It will return something like this:
         },
         {
             "Value": "M00000805",
-            "Key": "molecularID"
+            "Key": "molecular_id"
         },
         {
             "Value": "138062561-CARD6602",
-            "Key": "omicsSampleName"
+            "Key": "omics_sample_name"
         }
     ]
 }  
