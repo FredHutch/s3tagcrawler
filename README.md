@@ -6,21 +6,24 @@ according to a CSV file that you provide.
 **IMPORTANT NOTE**: This program is designed to use every available CPU core
 and upload a file on each core. **Do not run this program on the rhino
 machines or you will get yelled at.** Instead, use
-[grablargenode](https://teams.fhcrc.org/sites/citwiki/SciComp/Pages/Grab%20Commands.aspx).
+[grabnode](https://teams.fhcrc.org/sites/citwiki/SciComp/Pages/Grab%20Commands.aspx).
+
+Specify that you want at least 16 cores and at least 32GB of memory.
 
 ## Using the tool
 
 You must supply a CSV file which has a header line like this:
 
 ```
-seq_dir,s3transferbucket,s3_prefix,molecular_id,assay_material_id,stage,omics_sample_name
+seq_dir,s3transferbucket,s3_prefix,molecular_id,assay_material_id,stage,omics_sample_name,data_type
 ```
 
 Where each column is as follows (column order is important!):
 
-* `seq_dir`: The full path to a folder in `/fh/fast` that contains files to be
-  uploaded to S3. Only `*.fastq` and `*.fastq.gz` files in this directory will
-  be uploaded, and only files in the top level of the folder will be uploaded.
+* `seq_dir`: The full path to a directory in `/fh/fast` that contains files to be
+  uploaded to S3, **or** the path to a single file to upload.
+  If a directory, only files in the top level of the directory
+  will be uploaded.
 * `s3transferbucket`: The name of the S3 bucket to upload to. Should
   not have an `s3://` prefix. You must have write access to this bucket in order
   to use this tool.
@@ -29,17 +32,21 @@ Where each column is as follows (column order is important!):
 * `assay_material_id`: Value for the `assay_material_id` tag.
 * `stage`: Value for the `stage` tag. Should be `raw` for raw data.
 * `omics_sample_name`: Value for the `omics_sample_name` tag.
+* `data_type`: either 1 or 0. 1 for sequencing data and 0 for array data. The
+  only difference between the two is that if `seq_dir` is a directory, and
+  `data_type` is 1, the program will upload *only* `.fastq` and `.fastq.gz` files.
+  If `data_type` is 0, the program will upload *all* files in `seq_dir`.
 
 Note that the actual names in the header row are not important to the program.
 It uses column positions and not the values of the header column. In other words,
-it expects the local folder to be the first column, the s3 bucket to be the second,
+it expects the local directory to be the first column, the s3 bucket to be the second,
 and so on.
 
 
 Once you have prepared the csv file, you can invoke the program as follows:
 
 ```
-grablargenode # if you haven't already
+grabnode # if you haven't already
 upload_and_tag name_of_your_file.csv
 exit # relinquishes the node you grabbed
 ```

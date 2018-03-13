@@ -34,33 +34,25 @@ import (
 	"github.com/google/uuid"
 )
 
-// DBrecord represents a row in the database
-type DBrecord struct {
-	bucketname string
-	tagKey     string
-	tagValue   string
-	objectKey  string
-}
+// DataType determines whether this is array or sequencing data
+type DataType string
 
-// CSVRecord represents a row in the csv manifest
-// type CSVRecord struct { // first iteration: manifestForObjTagging.csv
-// 	molecularID      string
-// 	assayMaterialID  string
-// 	s3TransferBucket string
-// 	s3Prefix         string
-// 	omicsSampleName  string
-// }
+// Data types
+const (
+	ArrayData      DataType = "0"
+	SequencingData DataType = "1"
+)
 
 // CSVRecord represents a row in the csv manifest
 type CSVRecord struct { // second iteration: 17-12-24-TagManifestUpdated.csv
-	molecularID     string
-	assayMaterialID string
-	// omicsSampleName  string
+	molecularID      string
+	assayMaterialID  string
 	s3TransferBucket string
 	s3Prefix         string
 	localDir         string
 	stage            string
 	omicsSampleName  string
+	dataType         DataType
 }
 
 // file: seq_dir,s3transferbucket,s3_prefix,molecular_id,assay_material_id,stage
@@ -146,7 +138,16 @@ func uploadFile(fileToUpload string, rec CSVRecord, wg *sync.WaitGroup, svc s3.S
 		fmt.Println(rec.s3Prefix+fileToUpload, "already exists in S3; not overwriting.")
 		return
 	}
-	fd, err := os.Open(rec.localDir + fileToUpload)
+	st, err := os.Lstat(rec.localDir)
+	if err != nil {
+		panic(err)
+	}
+	var fd *os.File
+	if st.IsDir() {
+		fd, err = os.Open(rec.localDir + fileToUpload)
+	} else {
+		fd, err = os.Open(rec.localDir)
+	}
 	if err != nil {
 		panic(err)
 	}
@@ -186,33 +187,58 @@ func uploadFile(fileToUpload string, rec CSVRecord, wg *sync.WaitGroup, svc s3.S
 func handleRecord(record []string, wg *sync.WaitGroup, svc s3.S3, cmd string, ops *uint64, guard chan struct{}) {
 	rec := CSVRecord{molecularID: record[3], assayMaterialID: record[4],
 		s3TransferBucket: record[1], s3Prefix: record[2], localDir: record[0],
-		stage: record[5], omicsSampleName: strings.TrimSpace(record[6])}
+		stage: record[5], omicsSampleName: record[6],
+		dataType: DataType(strings.TrimSpace(record[7]))}
 
 	if !strings.HasSuffix(rec.s3Prefix, "/") {
 		rec.s3Prefix = rec.s3Prefix + "/"
 	}
-	if !strings.HasSuffix(rec.localDir, "/") {
-		rec.localDir = rec.localDir + "/"
-	}
 
-	files, err := ioutil.ReadDir(rec.localDir)
+	f, err := os.Lstat(rec.localDir)
 	if err != nil {
 		panic(err)
 	}
+
+	var uploadSingleFile bool
+
+	var files []os.FileInfo
+
+	if f.IsDir() {
+		if !strings.HasSuffix(rec.localDir, "/") {
+			rec.localDir = rec.localDir + "/"
+		}
+
+		files, err = ioutil.ReadDir(rec.localDir)
+		if err != nil {
+			panic(err)
+		}
+	} else {
+		uploadSingleFile = true
+		files = append(files, f)
+	}
+
 	for _, file := range files {
-		if !file.IsDir() && (strings.HasSuffix(file.Name(), ".fastq") ||
-			strings.HasSuffix(file.Name(), ".fastq.gz")) {
-			switch cmd {
-			case "upload":
-				wg.Add(1)
-				guard <- struct{}{}
-				go uploadFile(file.Name(), rec, wg, svc, ops, guard)
-			case "delete":
-				deleteFile(file.Name(), rec, wg, svc, ops)
-			case "count":
-				// fmt.Printf("%s%s\n", rec.localDir, file.Name())
-				atomic.AddUint64(ops, 1)
+		if file.IsDir() {
+			continue
+		}
+		if rec.dataType == SequencingData {
+			// fastq
+
+			if (!uploadSingleFile) &&
+				!(strings.HasSuffix(file.Name(), ".fastq") ||
+					strings.HasSuffix(file.Name(), ".fastq.gz")) {
+				continue
 			}
+		}
+		switch cmd {
+		case "upload":
+			wg.Add(1)
+			guard <- struct{}{}
+			go uploadFile(file.Name(), rec, wg, svc, ops, guard)
+		case "delete":
+			deleteFile(file.Name(), rec, wg, svc, ops)
+		case "count":
+			atomic.AddUint64(ops, 1)
 		}
 	}
 }
@@ -228,10 +254,10 @@ func main() {
 Please supply the name of a csv file containing the following a header line
 like this:
 
-seq_dir,s3transferbucket,s3_prefix,molecular_id,assay_material_id,stage,omics_sample_name
+seq_dir,s3transferbucket,s3_prefix,molecular_id,assay_material_id,stage,omics_sample_name,data_type
 
 NOTE: This program will use all available cores. Be a good citizen and
-'grablargenode' so that this program does not disrupt others' work.
+'grabnode' so that this program does not disrupt others' work.
 More information:
 https://teams.fhcrc.org/sites/citwiki/SciComp/Pages/Grab%%20Commands.aspx
 
