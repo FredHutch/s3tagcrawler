@@ -8,7 +8,7 @@ and upload a file on each core. **Do not run this program on the rhino
 machines or you will get yelled at.** Instead, use
 [grabnode](https://teams.fhcrc.org/sites/citwiki/SciComp/Pages/Grab%20Commands.aspx).
 
-Specify that you want at least 16 cores and at least 8GB of memory.
+Specify that you want at least 4 cores and at least 8GB of memory.
 
 ## Using the tool
 
