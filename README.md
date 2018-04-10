@@ -1,7 +1,8 @@
 # Upload and Tag Tool
 
 This is a tool that uploads files in `/fh/fast` to Amazon S3, and tags them
-according to a CSV file that you provide.
+according to a CSV file that you provide. There's also an option to (re-)tag existing files
+in S3 (without uploading).
 
 **IMPORTANT NOTE**: This program is designed to use every available CPU core
 and upload a file on each core. **Do not run this program on the rhino
@@ -58,6 +59,17 @@ For each line in the CSV, `upload_and_tag` will upload all `*.fastq` and
 If a file with the same name already exists, the program will not overwrite
 it, but will indicate in its output that the file already exists.
 
+
+## To tag only (no uploading)
+
+Use the `-t` (or `--tag-only`) option. Adding this option will cause the program
+to do the following, for each row in the input CSV file:
+
+* Get a list of all objects at the specified prefix (if `data_type` is 1,
+  only `*.fastq` and `*.fastq.gz` files are included)
+* Tags each of these objects with the tags specified in the current row.
+* If the prefix specified does not exist in S3, nothing is done.  
+
 ## How to verify that a file has the correct tags:
 
 You can issue a command like the following:
@@ -92,6 +104,10 @@ It will return something like this:
     ]
 }  
 ```
+
+Also see the  [get-s3-tags](https://github.com/FredHutch/get-s3-tags) tool
+which can return tags for all (or some) items in a bucket.
+
 
 ## Problems and Support
 
