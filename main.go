@@ -391,7 +391,7 @@ More information:
 https://teams.fhcrc.org/sites/citwiki/SciComp/Pages/Grab%%20Commands.aspx
 
 Full documentation is here:
-https://github.com/FredHutch/s3tagcrawler/tree/feature/uploadAndTag
+https://github.com/FredHutch/s3tagcrawler/
 
 `
 	kingpin.Parse()
