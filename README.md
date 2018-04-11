@@ -4,12 +4,12 @@ This is a tool that uploads files in `/fh/fast` to Amazon S3, and tags them
 according to a CSV file that you provide to prepare the data for downstream processes such as use with Globus Genomics. There's also an option to (re-)tag existing files
 in an Amazon S3 bucket (without uploading).
 
-**IMPORTANT NOTE**: This program is designed to use every available CPU core
-and upload a file on each core. **Do not run this program on the rhino
-machines or you will get yelled at.** Instead, use
-[grabnode](https://teams.fhcrc.org/sites/citwiki/SciComp/Pages/Grab%20Commands.aspx).
 
-Specify that you want at least 4 cores and at least 8GB of memory.
+## What the program does
+
+For each line in the CSV, `upload_and_tag` will upload file(s) at the specified path in `/fh/fast` to the specified S3 bucket and prefix, with the defined tags.  If a path to a directory is given, all the files in the directory will be uploaded if `data_type == 0`, or only those files ending in `.fastq` and `.fastq.gz` if `data_type == 1`.  If the path includes a filename, only that file will be uploaded. If a file with the same name already exists, the program will not overwrite
+it, but will indicate in its output that the file already exists. 
+
 
 ## Using the tool
 
@@ -37,20 +37,18 @@ and so on.
 * `omics_sample_name`: Value for the `omics_sample_name` tag. This tag typically will be the string used to name the files generated, and in the case of the example sequencing data *sample1_TGACCA_L001_R1_001.fastq.gz*, the `omics_sample_name` is "sample1", and is the string that would be grep'd for to find all associated files for that sample. 
 * `data_type`: either 1 or 0, defines whether *only* `.fastq` and `.fastq.gz` files in `fast_path` are uploaded (if `fast_path == 1`), or if *all* files in `fast_path` are uploaded (if `fast_path == 0`).  Suggested use is 1 for sequencing data where only the fastq's are of interest to transfer and 0 for other data sets such as raw array data, processed custom data sets that are not fastq files but the directory contains only files intended to be analyzed as a set. 
 
-
+**IMPORTANT NOTE**: This program is designed to use every available CPU core
+and upload a file on each core. **Do not run this program on the rhino
+machines or you will get yelled at.** Instead, use
+[grabnode](https://teams.fhcrc.org/sites/citwiki/SciComp/Pages/Grab%20Commands.aspx).
 
 Once you have prepared the csv file, you can invoke the program as follows:
 
 ```
-grabnode # if you haven't already
-upload_and_tag name_of_your_file.csv
-exit # relinquishes the node you grabbed
+grabnode # request a min of 4 cores, 8GB of memory for 1 day
+upload_and_tag name_of_your_file.csv 
+exit # relinquishes the node you grabbed, otherwise it will be yours for the entire day!
 ```
-
-## What the program does
-
-For each line in the CSV, `upload_and_tag` will upload file(s) at the specified path in `/fh/fast` to the specified S3 bucket and prefix, with the defined tags.  If a path to a directory is given, all the files in the directory will be uploaded if `data_type == 0`, or only those files ending in `.fastq` and `.fastq.gz` if `data_type == 1`.  If the path includes a filename, only that file will be uploaded. If a file with the same name already exists, the program will not overwrite
-it, but will indicate in its output that the file already exists. 
 
 ## To tag only (without uploading)
 
