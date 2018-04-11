@@ -18,15 +18,15 @@ You must supply a CSV file which has a header line like this:
 ```
 fast_path, s3_transferbucket, s3_prefix, molecular_id, assay_material_id, stage, omics_sample_name, data_type
 ```
-*Note:* The actual names in the header row that are not tags (e.g. `fast_path`), are not important to the program.
+**Note:** The actual names in the header row that are not tags (e.g. `fast_path`), are not important to the program.
 It uses column positions and not the values of the header column. In other words,
 it expects the local directory to be the first column, the s3 bucket to be the second,
 and so on.
 
 * `fast_path`: The full path to a directory in `/fh/fast` that contains files to be
-  uploaded to S3, **or** the full path including file name to a single file to upload.
+  uploaded to S3, *or* the full path including file name to a single file to upload.
   If fast_path refers to a directory, only files in the top level of the directory
-  will be uploaded. *NOTE:* All matching file(s) at `fast_path` will be tagged with the same tags, thus this is intended to be given the path to a folder containing data files to be used as a group, e.g., all the fastq's made from a sequencing run for a given sample, thus all the file names are likely **sample1_TGACCA_L001_R1_001.fastq.gz**, **sample1_TGACCA_L001_R2_001.fastq.gz**, etc but the directory contains an arbitrary number of files.  If you are tagging without uploading, leave this column blank. 
+  will be uploaded. **NOTE:** All matching file(s) at `fast_path` will be tagged with the same tags, thus this is intended to be given the path to a directory containing data files to be used as a group.  An example is all the fastq's made from a sequencing run for a given sample, thus all the file names are likely *sample1_TGACCA_L001_R1_001.fastq.gz*, *sample1_TGACCA_L001_R2_001.fastq.gz*, etc but the directory contains an arbitrary number of files.  If you are tagging without uploading, leave this column blank. 
 * `s3_transferbucket`: The name of the S3 bucket to upload to. Should
   not have an `s3://` prefix (e.g., just unquoted "fh-pi-paguirigan-a"). You must have write access to this bucket and credentials saved in your ~/.aws directory in order
   to use this tool. 
@@ -35,7 +35,7 @@ and so on.
 * `assay_material_id`: Value for the `assay_material_id` tag.
 * `stage`: Value for the `stage` tag. Should be `raw` for raw data or `processed` for processed data.
 * `omics_sample_name`: Value for the `omics_sample_name` tag.
-* `data_type`: either 1 or 0, defines whether *only* `.fastq` and `.fastq.gz` files in `fast_path` are uploaded (if == 1), or if *all* files in `fast_path` are uploaded (if == 0).  Suggested use is 1 for sequencing data where only the fastq's are of interest to transfer and 0 for other data sets such as raw array data, processed custom data sets that are not fastq files but the directory contains only files intended to be analyzed as a set. 
+* `data_type`: either 1 or 0, defines whether *only* `.fastq` and `.fastq.gz` files in `fast_path` are uploaded (if `fast_path == 1`), or if *all* files in `fast_path` are uploaded (if `fast_path == 0`).  Suggested use is 1 for sequencing data where only the fastq's are of interest to transfer and 0 for other data sets such as raw array data, processed custom data sets that are not fastq files but the directory contains only files intended to be analyzed as a set. 
 
 
 
@@ -58,7 +58,7 @@ Use the `-t` (or `--tag-only`) option. Adding this option will cause the program
 to do the following, for each row in the input CSV file:
 
 * Get a list of all objects at the specified prefix (if `data_type` is 1,
-  only `*.fastq` and `*.fastq.gz` files are included)
+  only `*.fastq` and `*.fastq.gz` files are included for tagging).
 * Tags each of these objects with the tags specified in the current row.
 * If the prefix specified does not exist in S3, nothing is done.  
 
