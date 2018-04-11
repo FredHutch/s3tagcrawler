@@ -31,10 +31,10 @@ and so on.
   not have an `s3://` prefix (e.g., just unquoted "fh-pi-paguirigan-a"). You must have write access to this bucket and credentials saved in your ~/.aws directory in order
   to use this tool. 
 * `s3_prefix`: The prefix in S3 where the file(s) in `fast_path` should be uploaded.
-* `molecular_id`: Value for the `molecular_id` tag.
-* `assay_material_id`: Value for the `assay_material_id` tag.
-* `stage`: Value for the `stage` tag. Should be `raw` for raw data or `processed` for processed data.
-* `omics_sample_name`: Value for the `omics_sample_name` tag.
+* `molecular_id`: Value for the `molecular_id` tag.  Suggested use is to maintain a list/database of sets of raw molecular data sets with unique identifiers for your work.  This list/database should also include metadata about the dataset itself (such as if it's RNA Seq, what library prep type was done, read lenght, paired end?, etc).  
+* `assay_material_id`: Value for the `assay_material_id` tag. Suggested use is to maintain a list/database of assay materials (such as RNA or DNA from specimens), that were used to generate molecular data sets. This list/database should also include metadata about the assay material itself (such as whether the sample was a control or exposed condition, type of RNA extraction done, RIN or other QC metrics, etc).  
+* `stage`: Value for the `stage` tag. Should be `raw` for raw data or `processed` for processed data. In this instance, an example use of this tag is the de-multiplexed fastq data for a sequencing run serves as the `raw` data for a bioinformatic process that generates a vcf or gene-count list which would be the `processed` data set.  
+* `omics_sample_name`: Value for the `omics_sample_name` tag. This tag typically will be the string used to name the files generated, and in the case of the example sequencing data *sample1_TGACCA_L001_R1_001.fastq.gz*, the `omics_sample_name` is "sample1", and is the string that would be grep'd for to find all associated files for that sample. 
 * `data_type`: either 1 or 0, defines whether *only* `.fastq` and `.fastq.gz` files in `fast_path` are uploaded (if `fast_path == 1`), or if *all* files in `fast_path` are uploaded (if `fast_path == 0`).  Suggested use is 1 for sequencing data where only the fastq's are of interest to transfer and 0 for other data sets such as raw array data, processed custom data sets that are not fastq files but the directory contains only files intended to be analyzed as a set. 
 
 
