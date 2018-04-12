@@ -8,10 +8,20 @@ in an Amazon S3 bucket (without uploading).
 ## What the program does
 
 For each line in the CSV, `upload_and_tag` will upload file(s) at the specified path in `/fh/fast` to the specified S3 bucket and prefix, with the defined tags.  If a path to a directory is given, all the files in the directory will be uploaded if `data_type == 0`, or only those files ending in `.fastq` and `.fastq.gz` if `data_type == 1`.  If the path includes a filename, only that file will be uploaded. If a file with the same name already exists, the program will not overwrite
-it, but will indicate in its output that the file already exists. 
+it, but will indicate in its output that the file already exists.
+
+### Obtaining S3 Credentials
+
+Before you begin, make sure you have obtained your S3 credentials
+by running the `awscreds` script, as documented
+[here](https://teams.fhcrc.org/sites/citwiki/SciComp/Pages/Getting%20AWS%20Credentials.aspx).
+
+
 
 
 ## Using the tool
+
+
 
 You must supply a CSV file which has a header line like this:
 
@@ -26,16 +36,16 @@ and so on.
 * `fast_path`: The full path to a directory in `/fh/fast` that contains files to be
   uploaded to S3, *or* the full path including file name to a single file to upload.
   If `fast_path` refers to a directory, only files in the top level of the directory
-  will be uploaded. **NOTE:** All matching file(s) at `fast_path` will be tagged with the same tags, thus this is intended to be given the path to a directory containing data files to be used as a group.  An example is all the fastq's made from a sequencing run for a given sample, thus all the file names are likely *sample1_TGACCA_L001_R1_001.fastq.gz*, *sample1_TGACCA_L001_R2_001.fastq.gz*, etc but the directory contains an arbitrary number of files.  If you are tagging without uploading, leave this column blank. 
+  will be uploaded. **NOTE:** All matching file(s) at `fast_path` will be tagged with the same tags, thus this is intended to be given the path to a directory containing data files to be used as a group.  An example is all the fastq's made from a sequencing run for a given sample, thus all the file names are likely *sample1_TGACCA_L001_R1_001.fastq.gz*, *sample1_TGACCA_L001_R2_001.fastq.gz*, etc but the directory contains an arbitrary number of files.  If you are tagging without uploading, leave this column blank.
 * `s3_transferbucket`: The name of the S3 bucket to upload to. Should
   not have an `s3://` prefix (e.g., just unquoted "fh-pi-paguirigan-a"). You must have write access to this bucket and credentials saved in your ~/.aws directory in order
-  to use this tool. 
+  to use this tool.
 * `s3_prefix`: The prefix in S3 where the file(s) in `fast_path` should be uploaded.
 * `molecular_id`: Value for the `molecular_id` tag.  Suggested use is to maintain a list/database of sets of raw molecular data sets with unique identifiers for your work.  This list/database should also include metadata about the dataset itself (such as if it's RNA Seq, what library prep type was done, read length, paired end?, etc).  
 * `assay_material_id`: Value for the `assay_material_id` tag. Suggested use is to maintain a list/database of assay materials (such as RNA or DNA from specimens), that were used to generate molecular data sets. This list/database should also include metadata about the assay material itself (such as whether the sample was a control or exposed condition, type of RNA extraction done, RIN or other QC metrics, etc).  
 * `stage`: Value for the `stage` tag. Should be `raw` for raw data or `processed` for processed data. In this instance, an example use of this tag is the de-multiplexed fastq data for a sequencing run serves as the `raw` data for a bioinformatic process that generates a vcf or gene-count list which would be the `processed` data set.  
-* `omics_sample_name`: Value for the `omics_sample_name` tag. This tag typically will be the string used to name the files generated, and in the case of the example sequencing data *sample1_TGACCA_L001_R1_001.fastq.gz*, the `omics_sample_name` is "sample1", and is the string that would be grep'd for to find all associated files for that sample. 
-* `data_type`: either 1 or 0, defines whether *only* `.fastq` and `.fastq.gz` files in `fast_path` are uploaded (if `fast_path == 1`), or if *all* files in `fast_path` are uploaded (if `fast_path == 0`).  Suggested use is 1 for sequencing data where only the fastq's are of interest to transfer and 0 for other data sets such as raw array data, processed custom data sets that are not fastq files but the directory contains only files intended to be analyzed as a set. 
+* `omics_sample_name`: Value for the `omics_sample_name` tag. This tag typically will be the string used to name the files generated, and in the case of the example sequencing data *sample1_TGACCA_L001_R1_001.fastq.gz*, the `omics_sample_name` is "sample1", and is the string that would be grep'd for to find all associated files for that sample.
+* `data_type`: either 1 or 0, defines whether *only* `.fastq` and `.fastq.gz` files in `fast_path` are uploaded (if `fast_path == 1`), or if *all* files in `fast_path` are uploaded (if `fast_path == 0`).  Suggested use is 1 for sequencing data where only the fastq's are of interest to transfer and 0 for other data sets such as raw array data, processed custom data sets that are not fastq files but the directory contains only files intended to be analyzed as a set.
 
 **IMPORTANT NOTE**: This program is designed to use every available CPU core
 and upload a file on each core. **Do not run this program on the rhino
@@ -46,7 +56,7 @@ Once you have prepared the csv file, you can invoke the program as follows:
 
 ```
 grabnode # request a min of 4 cores, 8GB of memory for 1 day
-upload_and_tag name_of_your_file.csv 
+upload_and_tag name_of_your_file.csv
 exit # relinquishes the node you grabbed, otherwise it will be yours for the entire day!
 ```
 
