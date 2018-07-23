@@ -14,7 +14,7 @@ it, but will indicate in its output that the file already exists.
 
 Before you begin, make sure you have obtained your S3 credentials
 by running the `awscreds` script, as documented
-[here](https://teams.fhcrc.org/sites/citwiki/SciComp/Pages/Getting%20AWS%20Credentials.aspx).
+[here](http://sciwiki.fredhutch.org/computing/access_overview/#getting-aws-s3-credentials).
 
 
 

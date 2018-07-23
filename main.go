@@ -319,7 +319,7 @@ func handleRecord(record []string, wg *sync.WaitGroup, svc s3.S3, cmd string, op
 
 		for _, item := range res.Contents {
 			key := *item.Key
-			var mfi MyFileInfo = MyFileInfo(key)
+			var mfi = MyFileInfo(key)
 			files = append(files, mfi)
 		}
 
@@ -380,7 +380,7 @@ func handleRecord(record []string, wg *sync.WaitGroup, svc s3.S3, cmd string, op
 
 func main() {
 	kingpin.CommandLine.Help = `
-Please supply the name of a csv file containing the following a header line
+Please supply the name of a csv file containing a header line
 like this:
 
 seq_dir,s3transferbucket,s3_prefix,molecular_id,assay_material_id,stage,omics_sample_name,data_type
