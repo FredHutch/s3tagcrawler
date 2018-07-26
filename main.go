@@ -42,6 +42,9 @@ const (
 var (
 	tagOnly = kingpin.Flag("tag-only", "Just tag, don't upload").Short('t').Bool()
 	csvFile = kingpin.Arg("csv", "CSV file").Required().String()
+	// technically, seq_dir is not required when the -t flag is used
+	// but for now we are requiring it. FIXME ?
+	requiredColumns = []string{"seq_dir", "s3transferbucket", "s3_prefix", "data_type"}
 )
 
 // DataType determines whether this is array or sequencing data
@@ -55,14 +58,11 @@ const (
 
 // CSVRecord represents a row in the csv manifest
 type CSVRecord struct { // second iteration: 17-12-24-TagManifestUpdated.csv
-	molecularID      string
-	assayMaterialID  string
+	localDir         string
 	s3TransferBucket string
 	s3Prefix         string
-	localDir         string
-	stage            string
-	omicsSampleName  string
 	dataType         DataType
+	tags             map[string]string
 }
 
 func asString(tags []*s3.Tag) string {
@@ -171,10 +171,9 @@ func uploadFile(fileToUpload string, rec CSVRecord, wg *sync.WaitGroup, svc s3.S
 	}
 	defer fd.Close()
 	v := url.Values{}
-	v.Set("stage", rec.stage)
-	v.Set("assay_material_id", rec.assayMaterialID)
-	v.Set("molecular_id", rec.molecularID)
-	v.Set("omics_sample_name", rec.omicsSampleName)
+	for key, value := range rec.tags {
+		v.Set(key, value)
+	}
 
 	// FIXME add omicsSampleName here?
 	input := &s3.PutObjectInput{
@@ -206,28 +205,18 @@ func uploadFile(fileToUpload string, rec CSVRecord, wg *sync.WaitGroup, svc s3.S
 func tagFile(fileToUpload string, rec CSVRecord, wg *sync.WaitGroup, svc s3.S3, ops *uint64, guard chan struct{}) {
 	defer wg.Done()
 	defer func() { <-guard }()
+
+	var tags []*s3.Tag
+	for k, v := range rec.tags {
+		tag := s3.Tag{Key: aws.String(k), Value: aws.String(v)}
+		tags = append(tags, &tag)
+	}
+
 	input := &s3.PutObjectTaggingInput{
 		Bucket: aws.String(rec.s3TransferBucket),
 		Key:    aws.String(fileToUpload),
 		Tagging: &s3.Tagging{
-			TagSet: []*s3.Tag{
-				{
-					Key:   aws.String("stage"),
-					Value: aws.String(rec.stage),
-				},
-				{
-					Key:   aws.String("assay_material_id"),
-					Value: aws.String(rec.assayMaterialID),
-				},
-				{
-					Key:   aws.String("molecular_id"),
-					Value: aws.String(rec.molecularID),
-				},
-				{
-					Key:   aws.String("omics_sample_name"),
-					Value: aws.String(rec.omicsSampleName),
-				},
-			},
+			TagSet: tags,
 		},
 	}
 	_, perr := svc.PutObjectTagging(input)
@@ -284,11 +273,34 @@ func (m MyFileInfo) Sys() interface{} {
 	return nil
 }
 
-func handleRecord(record []string, wg *sync.WaitGroup, svc s3.S3, cmd string, ops *uint64, guard chan struct{}) {
-	rec := CSVRecord{molecularID: record[3], assayMaterialID: record[4],
-		s3TransferBucket: record[1], s3Prefix: record[2], localDir: record[0],
-		stage: record[5], omicsSampleName: record[6],
-		dataType: DataType(strings.TrimSpace(record[7]))}
+func getRecord(record []string, headers map[int]string) CSVRecord {
+	rec := CSVRecord{}
+	var tags map[string]string
+	tags = make(map[string]string)
+
+	for i, item := range record {
+		columnName := headers[i]
+		if isStringInSlice(columnName, requiredColumns) {
+			switch columnName {
+			case "seq_dir":
+				rec.localDir = item
+			case "s3transferbucket":
+				rec.s3TransferBucket = item
+			case "s3_prefix":
+				rec.s3Prefix = item
+			case "data_type":
+				rec.dataType = DataType(item)
+			}
+		} else {
+			tags[columnName] = item
+		}
+	}
+	rec.tags = tags
+	return rec
+}
+
+func handleRecord(record []string, headers map[int]string, wg *sync.WaitGroup, svc s3.S3, cmd string, ops *uint64, guard chan struct{}) {
+	rec := getRecord(record, headers)
 
 	var file os.FileInfo
 
@@ -378,12 +390,54 @@ func handleRecord(record []string, wg *sync.WaitGroup, svc s3.S3, cmd string, op
 	}
 }
 
+func isStringInSlice(str string, sl []string) bool {
+	for _, item := range sl {
+		if item == str {
+			return true
+		}
+	}
+	return false
+}
+
+func getHeaders(record []string) map[int]string {
+	// make sure all required columns are present, and there
+	// must be at least one additional column (for tagging)
+	requiredCount := 0
+	var headers map[int]string
+	headers = make(map[int]string)
+	for i, item := range record {
+		if isStringInSlice(item, requiredColumns) {
+			requiredCount++
+		}
+		headers[i] = item
+	}
+
+	if requiredCount < len(requiredColumns) {
+		fmt.Println("Missing required column(s)!")
+		os.Exit(1)
+	}
+	if len(headers) == len(requiredColumns) {
+		fmt.Println("No tag columns!")
+		os.Exit(1)
+	}
+	return headers
+}
+
 func main() {
 	kingpin.CommandLine.Help = `
-Please supply the name of a csv file containing a header line
-like this:
+Please supply the name of a csv file.
+The file must contain the following columns:
 
-seq_dir,s3transferbucket,s3_prefix,molecular_id,assay_material_id,stage,omics_sample_name,data_type
+seq_dir - the directory of files to upload
+
+s3transferbucket - the name of the S3 bucket to upload to
+
+s3_prefix - a prefix in S3 under which to upload
+
+data_type - set to 0 to upload all files and 1 to upload fastq/fastq.gz only
+
+You must supply at least one additional column containing the 
+tag(s) you want to apply.
 
 NOTE: This program will use all available cores. Be a good citizen and
 'grabnode' so that this program does not disrupt others' work.
@@ -414,6 +468,7 @@ https://github.com/FredHutch/s3tagcrawler/
 	defer fileHandle.Close()
 	r := csv.NewReader(fileHandle)
 	var wg sync.WaitGroup
+	var headers map[int]string
 	for i := 0; ; i++ {
 		record, readErr := r.Read()
 		if readErr == io.EOF {
@@ -422,10 +477,11 @@ https://github.com/FredHutch/s3tagcrawler/
 		if readErr != nil {
 			log.Fatal(readErr)
 		}
-		if i == 0 { // skip header
+		if i == 0 {
+			headers = getHeaders(record)
 			continue
 		}
-		handleRecord(record, &wg, *svc, cmd, &ops, guard)
+		handleRecord(record, headers, &wg, *svc, cmd, &ops, guard)
 	}
 	wg.Wait()
 	fmt.Println("Number of ops:", atomic.LoadUint64(&ops))
