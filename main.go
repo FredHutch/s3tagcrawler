@@ -301,7 +301,6 @@ func getRecord(record []string, headers map[int]string) CSVRecord {
 
 func handleRecord(record []string, headers map[int]string, wg *sync.WaitGroup, svc s3.S3, cmd string, ops *uint64, guard chan struct{}) {
 	rec := getRecord(record, headers)
-
 	var file os.FileInfo
 
 	var files []os.FileInfo
@@ -313,6 +312,30 @@ func handleRecord(record []string, headers map[int]string, wg *sync.WaitGroup, s
 	}
 
 	if cmd == TAG {
+
+		// first see if rec.s3Prefix refers to an object, or is just a prefix
+
+		unslashed := strings.TrimRight(rec.s3Prefix, "/")
+		// unslashed := rec.s3Prefix // TODO remove!
+		headInput := &s3.HeadObjectInput{
+			Bucket: aws.String(rec.s3TransferBucket),
+			Key:    aws.String(unslashed),
+		}
+		_, err := svc.HeadObject(headInput)
+		if err != nil {
+			if aerr, ok := err.(awserr.Error); ok {
+				switch aerr.Code() {
+				default:
+					if aerr.Message() == "Not Found" {
+						// object does not exist
+					}
+				}
+			} else {
+				panic(err)
+			}
+		} else {
+			rec.s3Prefix = unslashed
+		}
 
 		input := &s3.ListObjectsV2Input{
 			Bucket: aws.String(rec.s3TransferBucket),
