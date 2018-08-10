@@ -27,7 +27,7 @@ You must supply a CSV file with the following column headers in the first line:
   uploaded to S3, *or* the full path including file name to a single file to upload.
   If `seq_dir` refers to a directory, only files in the top level of the directory
   will be uploaded. **NOTE:** All matching file(s) at `seq_dir` will be tagged with the same tags, thus this is intended to be given the path to a directory containing data files to be used as a group.  An example is all the fastq's made from a sequencing run for a given sample, thus all the file names are likely *sample1_TGACCA_L001_R1_001.fastq.gz*, *sample1_TGACCA_L001_R2_001.fastq.gz*, etc but the directory contains an arbitrary number of files.  If you are tagging without uploading, leave this column blank.
-* `s3_transferbucket`: The name of the S3 bucket to upload to. Should
+* `s3transferbucket`: The name of the S3 bucket to upload to. Should
   not have an `s3://` prefix (e.g., just unquoted "fh-pi-paguirigan-a"). You must have write access to this bucket and credentials saved in your ~/.aws directory in order
   to use this tool.
 * `s3_prefix`: The prefix in S3 where the file(s) in `fast_path` should be uploaded.
