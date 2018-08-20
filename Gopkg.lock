@@ -68,6 +68,12 @@
   revision = "0b12d6b5"
 
 [[projects]]
+  name = "github.com/ncw/swift"
+  packages = ["."]
+  revision = "b2a7479cf26fa841ff90dd932d0221cb5c50782d"
+  version = "v1.0.39"
+
+[[projects]]
   name = "gopkg.in/alecthomas/kingpin.v2"
   packages = ["."]
   revision = "947dcec5ba9c011838740e680966fd7087a71d0d"
@@ -76,6 +82,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "75df70b2a0102ffa16831220273df87d8bd5feb41ecc00c0293dc13fd91aa9f3"
+  inputs-digest = "e677b1b6aa08ca2b427049ea6b012db57ecc0d1798689819239032ccc5ef8efb"
   solver-name = "gps-cdcl"
   solver-version = 1

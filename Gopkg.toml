@@ -40,3 +40,7 @@
 [[constraint]]
   name = "gopkg.in/alecthomas/kingpin.v2"
   version = "2.2.6"
+
+[[constraint]]
+  name = "github.com/ncw/swift"
+  version = "1.0.39"

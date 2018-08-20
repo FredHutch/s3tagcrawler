@@ -26,6 +26,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/ncw/swift"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -45,6 +47,7 @@ var (
 	// technically, seq_dir is not required when the -t flag is used
 	// but for now we are requiring it. FIXME ?
 	requiredColumns = []string{"seq_dir", "s3transferbucket", "s3_prefix", "data_type"}
+	swiftConnection = swift.Connection{}
 )
 
 // DataType determines whether this is array or sequencing data
@@ -63,6 +66,9 @@ type CSVRecord struct { // second iteration: 17-12-24-TagManifestUpdated.csv
 	s3Prefix         string
 	dataType         DataType
 	tags             map[string]string
+	isInSwift        bool
+	swiftContainer   string
+	swiftPath        string
 }
 
 func asString(tags []*s3.Tag) string {
@@ -156,20 +162,37 @@ func uploadFile(fileToUpload string, rec CSVRecord, wg *sync.WaitGroup, svc s3.S
 		fmt.Println(rec.s3Prefix+fileToUpload, "already exists in S3; not overwriting.")
 		return
 	}
-	st, err := os.Lstat(rec.localDir)
-	if err != nil {
-		panic(err)
-	}
-	var fd *os.File
-	if st.IsDir() {
-		fd, err = os.Open(rec.localDir + fileToUpload)
+	var fd io.ReadSeeker
+	if rec.isInSwift {
+		st, err := os.Lstat(rec.localDir)
+		if err != nil {
+			panic(err)
+		}
+		if st.IsDir() {
+			fd, err = os.Open(rec.localDir + fileToUpload)
+		} else {
+			fd, err = os.Open(rec.localDir)
+		}
+		if err != nil {
+			panic(err)
+		}
+		// defer fd.Close()
 	} else {
-		fd, err = os.Open(rec.localDir)
+		if swiftConnection.AuthToken == "" || swiftConnection.StorageUrl == "" {
+			swiftConnection.AuthToken = os.Getenv("OS_AUTH_TOKEN")
+			swiftConnection.StorageUrl = os.Getenv("OS_STORAGE_URL")
+			if swiftConnection.AuthToken == "" || swiftConnection.StorageUrl == "" {
+				fmt.Println("Environment variables OS_AUTH_TOKEN and OS_STORAGE_URL must be set in order to use Swift!")
+				os.Exit(1)
+			}
+		}
+		var err error
+		fd, _, err = swiftConnection.ObjectOpen(rec.swiftContainer,
+			fileToUpload, false, swift.Headers{})
+		if err != nil {
+			panic(err)
+		}
 	}
-	if err != nil {
-		panic(err)
-	}
-	defer fd.Close()
 	v := url.Values{}
 	for key, value := range rec.tags {
 		v.Set(key, value)
@@ -284,6 +307,16 @@ func getRecord(record []string, headers map[int]string) CSVRecord {
 			switch columnName {
 			case "seq_dir":
 				rec.localDir = item
+				if strings.HasPrefix(item, "swift://") {
+					rec.isInSwift = true
+					url, err := url.Parse(item)
+					if err != nil {
+						fmt.Println("invalid url: ", item)
+						os.Exit(1)
+					}
+					rec.swiftContainer = url.Host
+					rec.swiftPath = strings.TrimLeft(url.Path, "/")
+				}
 			case "s3transferbucket":
 				rec.s3TransferBucket = item
 			case "s3_prefix":
@@ -359,6 +392,7 @@ func handleRecord(record []string, headers map[int]string, wg *sync.WaitGroup, s
 		}
 
 	} else {
+		// FIXME TODO DANTE handle it if file to upload is in swift
 		f, err := os.Lstat(rec.localDir)
 		if err != nil {
 			panic(err)
