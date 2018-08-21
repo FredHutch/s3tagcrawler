@@ -4,6 +4,8 @@ This is a tool that uploads files in `/fh/fast` to Amazon S3, and tags them
 according to a CSV file that you provide to prepare the data for downstream processes such as use with Globus Genomics. There's also an option to (re-)tag existing files
 in an Amazon S3 bucket (without uploading).
 
+The program is called `upload_and_tag` (despite the name of this repository)
+and is in `/app/bin` (in your path) on the `rhino` and `gizmo` nodes.
 
 ## What the program does
 
@@ -78,7 +80,6 @@ For ease of reading, here's the same CSV as a table:
 | /fh/fast/doe_j/some_other_files  | fh-pi-doe-j   | some_other_files   | 0  | purple  | november  |
 |/fh/fast/doe_j/path_to/a_file.txt|fh-pi-doe-j|lonely_files|0|red|may
 |swift://user_jbrown/path/to/files|fh-pi-doe-j|files-from-swift|0|mauve|april|
-
 
 This will upload any `.fastq` or `.fastq.gz` files found
 in `/fh/fast/doe_j/some_files` to the `fh-pi-doe-j` bucket
