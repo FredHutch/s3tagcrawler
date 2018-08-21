@@ -7,7 +7,8 @@ in an Amazon S3 bucket (without uploading).
 
 ## What the program does
 
-For each line in the CSV (not including the first line containing column names), `upload_and_tag` will upload file(s) at the specified path in `/fh/fast` to the specified S3 bucket and prefix, with the defined tags.  If a path to a directory is given, all the files in the directory will be uploaded if `data_type == 0`, or only those files ending in `.fastq` and `.fastq.gz` if `data_type == 1`.  If the path includes a filename, only that file will be uploaded. If a file with the same name already exists, the program will not overwrite
+For each line in the CSV (not including the first line containing column names), `upload_and_tag` will upload file(s) at the specified path in `/fh/fast`
+(or in Swift) to the specified S3 bucket and prefix, with the defined tags.  If a path to a directory is given, all the files in the directory will be uploaded if `data_type == 0`, or only those files ending in `.fastq` and `.fastq.gz` if `data_type == 1`.  If the path includes a filename, only that file will be uploaded. If a file with the same name already exists, the program will not overwrite
 it, but will indicate in its output that the file already exists.
 
 ### Obtaining S3 Credentials
@@ -15,6 +16,25 @@ it, but will indicate in its output that the file already exists.
 Before you begin, make sure you have obtained your S3 credentials
 by running the `awscreds` script, as documented
 [here](http://sciwiki.fredhutch.org/computing/access_overview/#getting-aws-s3-credentials).
+
+### Obtaining Swift Credentials
+
+If you are uploading (and not just tagging existing objects in S3) 
+and any of the files you are uploading are located in Swift, you must
+set the required environment variables. If your PI is Jane Doe, you would 
+do this:
+
+```
+sw2account doe_j
+eval $(swc auth)
+```
+
+This will place into the environment credentials that will be valid for
+7 days. It adds the following environment variables:
+
+* `OS_AUTH_URL`
+* `OS_STORAGE_URL`
+* `OS_AUTH_TOKEN`
 
 
 
@@ -25,6 +45,8 @@ You must supply a CSV file with the following column headers in the first line:
 
 * `seq_dir`: The full path to a directory in `/fh/fast` that contains files to be
   uploaded to S3, *or* the full path including file name to a single file to upload.
+  If you are uploading from Swift instead of `/fh/fast`, the value
+  of `seq_dir` should start with `swift://` and take the following form: `swift://containername/path/to/file/or/dir`.
   If `seq_dir` refers to a directory, only files in the top level of the directory
   will be uploaded. **NOTE:** All matching file(s) at `seq_dir` will be tagged with the same tags, thus this is intended to be given the path to a directory containing data files to be used as a group.  An example is all the fastq's made from a sequencing run for a given sample, thus all the file names are likely *sample1_TGACCA_L001_R1_001.fastq.gz*, *sample1_TGACCA_L001_R2_001.fastq.gz*, etc but the directory contains an arbitrary number of files.  If you are tagging without uploading, leave this column blank.
 * `s3transferbucket`: The name of the S3 bucket to upload to. Should
@@ -43,6 +65,7 @@ seq_dir,s3transferbucket,s3_prefix.data_type,color,month
 /fh/fast/doe_j/some_files,fh-pi-doe-j,some_files,1,blue,september
 /fh/fast/doe_j/some_other_files,fh-pi-doe-j,some_other_files,0,purple,november
 /fh/fast/doe_j/path_to/a_file.txt,fh-pi-doe-j,lonely_files,0,red,may
+swift://user_jbrown/path/to/files,fh-pi-doe-j,files-from-swift,0,mauve,april
 ```
 
 For ease of reading, here's the same CSV as a table:
@@ -54,6 +77,7 @@ For ease of reading, here's the same CSV as a table:
 | /fh/fast/doe_j/some_files   | fh-pi-doe-j   | some_files   | 1  | blue  | september   |
 | /fh/fast/doe_j/some_other_files  | fh-pi-doe-j   | some_other_files   | 0  | purple  | november  |
 |/fh/fast/doe_j/path_to/a_file.txt|fh-pi-doe-j|lonely_files|0|red|may
+|swift://user_jbrown/path/to/files|fh-pi-doe-j|files-from-swift|0|mauve|april|
 |
 
 
@@ -64,8 +88,12 @@ pairs `color=blue` and `month=september`.
 It will also upload *all* files found in `/fh/fast/doe_j/some_other_files` to the same bucket, under the
 prefix `some_other_files`, and tag them with the key-value pairs
 `color=purple` and `month=november`.
-Finally, it will upload the single file `/fh/fast/doe_j/path_to/a_file.txt` to the same bucket, under the prefix `lonely_files`, and tag it with the key-value pairs
+It will upload the single file `/fh/fast/doe_j/path_to/a_file.txt` to the same bucket, under the prefix `lonely_files`, and tag it with the key-value pairs
 `color=red` and `month=may`.
+Finally, it will upload all objects in the Swift container `user_jbrown` 
+whose path starts with `path/to/files` to the same bucket under the prefix 
+`files-from-swift` and tag it with the key-value pairs
+`color=mauve` and `month=april`.
 
 You are free to add as many columns/tags as you need.
 By convention, the following tags have been used so far:

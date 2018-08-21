@@ -93,7 +93,6 @@ func uploadFilesWithTags() {
 			defer wg.Done()
 			GGworkflowID := rand.Intn(20)
 			assayMaterialID := rand.Intn(15)
-			// fmt.Print(".")
 			molecularID := rand.Intn(17)
 			objectName := uuid.New().String()
 			tags := fmt.Sprintf("stage=raw&GGworkflowId=%d&assayMaterialID=%d&molecularID=%d",
@@ -151,7 +150,6 @@ func fileExistsInS3(fileName string, rec CSVRecord, svc s3.S3) bool {
 	if err != nil {
 		panic(err)
 	}
-	// fmt.Println("fileExistsInS3 got result", res)
 	return *res.KeyCount > 0
 }
 
@@ -164,6 +162,15 @@ func uploadFile(fileToUpload string, rec CSVRecord, wg *sync.WaitGroup, svc s3.S
 	}
 	var fd io.ReadSeeker
 	if rec.isInSwift {
+
+		var err error
+		fd, _, err = swiftConnection.ObjectOpen(rec.swiftContainer,
+			fileToUpload, false, swift.Headers{})
+		if err != nil {
+			panic(err)
+		}
+	} else {
+
 		st, err := os.Lstat(rec.localDir)
 		if err != nil {
 			panic(err)
@@ -176,22 +183,7 @@ func uploadFile(fileToUpload string, rec CSVRecord, wg *sync.WaitGroup, svc s3.S
 		if err != nil {
 			panic(err)
 		}
-		// defer fd.Close()
-	} else {
-		if swiftConnection.AuthToken == "" || swiftConnection.StorageUrl == "" {
-			swiftConnection.AuthToken = os.Getenv("OS_AUTH_TOKEN")
-			swiftConnection.StorageUrl = os.Getenv("OS_STORAGE_URL")
-			if swiftConnection.AuthToken == "" || swiftConnection.StorageUrl == "" {
-				fmt.Println("Environment variables OS_AUTH_TOKEN and OS_STORAGE_URL must be set in order to use Swift!")
-				os.Exit(1)
-			}
-		}
-		var err error
-		fd, _, err = swiftConnection.ObjectOpen(rec.swiftContainer,
-			fileToUpload, false, swift.Headers{})
-		if err != nil {
-			panic(err)
-		}
+
 	}
 	v := url.Values{}
 	for key, value := range rec.tags {
@@ -306,7 +298,6 @@ func getRecord(record []string, headers map[int]string) CSVRecord {
 		if isStringInSlice(columnName, requiredColumns) {
 			switch columnName {
 			case "seq_dir":
-				rec.localDir = item
 				if strings.HasPrefix(item, "swift://") {
 					rec.isInSwift = true
 					url, err := url.Parse(item)
@@ -316,6 +307,10 @@ func getRecord(record []string, headers map[int]string) CSVRecord {
 					}
 					rec.swiftContainer = url.Host
 					rec.swiftPath = strings.TrimLeft(url.Path, "/")
+					rec.localDir = rec.swiftPath
+				} else {
+					rec.isInSwift = false
+					rec.localDir = item
 				}
 			case "s3transferbucket":
 				rec.s3TransferBucket = item
@@ -392,25 +387,54 @@ func handleRecord(record []string, headers map[int]string, wg *sync.WaitGroup, s
 		}
 
 	} else {
-		// FIXME TODO DANTE handle it if file to upload is in swift
-		f, err := os.Lstat(rec.localDir)
-		if err != nil {
-			panic(err)
-		}
-
-		if f.IsDir() {
-			if !strings.HasSuffix(rec.localDir, "/") {
-				rec.localDir = rec.localDir + "/"
+		if rec.isInSwift {
+			if swiftConnection.AuthToken == "" || swiftConnection.StorageUrl == "" {
+				swiftConnection.AuthToken = os.Getenv("OS_AUTH_TOKEN")
+				swiftConnection.StorageUrl = os.Getenv("OS_STORAGE_URL")
+				if swiftConnection.AuthToken == "" || swiftConnection.StorageUrl == "" {
+					fmt.Println("Environment variables OS_AUTH_TOKEN and OS_STORAGE_URL must be set in order to use Swift!")
+					os.Exit(1)
+				}
 			}
-
-			files, err = ioutil.ReadDir(rec.localDir)
+			prefix := rec.localDir
+			if !strings.HasSuffix(prefix, "/") {
+				prefix = prefix + "/"
+			}
+			results, err := swiftConnection.Objects(rec.swiftContainer, &swift.ObjectsOpts{Delimiter: '/', Prefix: prefix})
 			if err != nil {
 				panic(err)
 			}
+			if len(results) == 0 {
+				// assume rec.localDir refers to a single object, not a "directory"
+				uploadSingleFile = true
+				files = append(files, MyFileInfo(rec.localDir))
+			} else {
+				for _, item := range results {
+					files = append(files, MyFileInfo(item.Name))
+				}
+			}
 		} else {
-			uploadSingleFile = true
-			files = append(files, f)
+			f, err := os.Lstat(rec.localDir)
+			if err != nil {
+				panic(err)
+			}
+
+			if f.IsDir() {
+				if !strings.HasSuffix(rec.localDir, "/") {
+					rec.localDir = rec.localDir + "/"
+				}
+
+				files, err = ioutil.ReadDir(rec.localDir)
+				if err != nil {
+					panic(err)
+				}
+			} else {
+				uploadSingleFile = true
+				files = append(files, f)
+			}
+
 		}
+		// FIXME TODO DANTE handle it if file to upload is in swift
 
 	}
 
