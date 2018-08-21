@@ -78,7 +78,6 @@ For ease of reading, here's the same CSV as a table:
 | /fh/fast/doe_j/some_other_files  | fh-pi-doe-j   | some_other_files   | 0  | purple  | november  |
 |/fh/fast/doe_j/path_to/a_file.txt|fh-pi-doe-j|lonely_files|0|red|may
 |swift://user_jbrown/path/to/files|fh-pi-doe-j|files-from-swift|0|mauve|april|
-|
 
 
 This will upload any `.fastq` or `.fastq.gz` files found
