@@ -190,6 +190,9 @@ func uploadFile(fileToUpload string, rec CSVRecord, wg *sync.WaitGroup, svc s3.S
 		v.Set(key, value)
 	}
 
+	segs := strings.Split(fileToUpload, "/")
+	fileToUpload = segs[len(segs)-1]
+
 	// FIXME add omicsSampleName here?
 	input := &s3.PutObjectInput{
 		Bucket:  aws.String(rec.s3TransferBucket),
