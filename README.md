@@ -67,7 +67,7 @@ seq_dir,s3transferbucket,s3_prefix.data_type,color,month
 /fh/fast/doe_j/some_files,fh-pi-doe-j,some_files,1,blue,september
 /fh/fast/doe_j/some_other_files,fh-pi-doe-j,some_other_files,0,purple,november
 /fh/fast/doe_j/path_to/a_file.txt,fh-pi-doe-j,lonely_files,0,red,may
-swift://user_jbrown/path/to/files,fh-pi-doe-j,files-from-swift,0,mauve,april
+swift://acontainername/path/to/files,fh-pi-doe-j,files-from-swift,0,mauve,april
 ```
 
 For ease of reading, here's the same CSV as a table:
@@ -79,7 +79,7 @@ For ease of reading, here's the same CSV as a table:
 | /fh/fast/doe_j/some_files   | fh-pi-doe-j   | some_files   | 1  | blue  | september   |
 | /fh/fast/doe_j/some_other_files  | fh-pi-doe-j   | some_other_files   | 0  | purple  | november  |
 |/fh/fast/doe_j/path_to/a_file.txt|fh-pi-doe-j|lonely_files|0|red|may
-|swift://user_jbrown/path/to/files|fh-pi-doe-j|files-from-swift|0|mauve|april|
+|swift://acontainername/path/to/files|fh-pi-doe-j|files-from-swift|0|mauve|april|
 
 This will upload any `.fastq` or `.fastq.gz` files found
 in `/fh/fast/doe_j/some_files` to the `fh-pi-doe-j` bucket
@@ -90,7 +90,7 @@ prefix `some_other_files`, and tag them with the key-value pairs
 `color=purple` and `month=november`.
 It will upload the single file `/fh/fast/doe_j/path_to/a_file.txt` to the same bucket, under the prefix `lonely_files`, and tag it with the key-value pairs
 `color=red` and `month=may`.
-Finally, it will upload all objects in the Swift container `user_jbrown` 
+Finally, it will upload all objects in the Swift container `acontainername` 
 whose path starts with `path/to/files` to the same bucket under the prefix 
 `files-from-swift` and tag it with the key-value pairs
 `color=mauve` and `month=april`.
