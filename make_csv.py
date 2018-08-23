@@ -44,7 +44,7 @@ def main():
             prefix = "{}/{}".format(prefix, filename_string)
             matches = [x for x in swiftlisting if x.startswith(prefix)]
             for match in matches:
-                outdict = dict(seq_dir=match)
+                outdict = dict(seq_dir="swift://{}".format(match))
                 for item in otherkeys:
                     outdict[item] = row[item]
                 # print(outdict)
