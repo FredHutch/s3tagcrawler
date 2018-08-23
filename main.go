@@ -167,6 +167,7 @@ func uploadFile(fileToUpload string, rec CSVRecord, wg *sync.WaitGroup, svc s3.S
 		fd, _, err = swiftConnection.ObjectOpen(rec.swiftContainer,
 			fileToUpload, false, swift.Headers{})
 		if err != nil {
+			fmt.Println("Whoops, got an error with", fileToUpload)
 			panic(err)
 		}
 	} else {
