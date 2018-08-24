@@ -310,7 +310,11 @@ func getRecord(record []string, headers map[int]string) CSVRecord {
 						os.Exit(1)
 					}
 					rec.swiftContainer = url.Host
+
 					rec.swiftPath = strings.TrimLeft(url.Path, "/")
+					if url.Fragment != "" {
+						rec.swiftPath = fmt.Sprintf("%s#%s", rec.swiftPath, url.Fragment)
+					}
 					rec.localDir = rec.swiftPath
 				} else {
 					rec.isInSwift = false
